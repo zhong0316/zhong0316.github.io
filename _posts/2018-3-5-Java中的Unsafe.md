@@ -53,7 +53,7 @@ public native int getInt(Object var1, long var2);
 
 public native void putInt(Object var1, long var2, int var4);
 ```
-getInt(Object var1, long var2)用于从对象var1的偏移地址var2读取一个int。putInt(Object var1, long var2, int var4)用于在对象var1的偏移地址为var2的地方写入一个int。其他的primitive type也有对应的方法。
+getInt用于从对象的指定偏移地址处读取一个int。putInt用于在对象指定偏移地址处写入一个int。其他的primitive type也有对应的方法。
 
 **Unsafe还可以直接在一个地址上读写**
 
@@ -62,7 +62,7 @@ public native byte getByte(long var1);
 
 public native void putByte(long var1, byte var3);
 ```
-getByte(long var1)用于从内存地址var1处开始读取一个Byte对象。putByte(long var1, byte var3)用于从内存地址var1处写入一个byte。其他的primitive type也有对应的方法。
+getByte用于从指定内存地址处开始读取一个byte。putByte用于从指定内存地址写入一个byte。其他的primitive type也有对应的方法。
 
 
 
@@ -74,7 +74,7 @@ public native int getIntVolatile(Object var1, long var2);
 
 public native void putIntVolatile(Object var1, long var2, int var4);
 ```
-getIntVolatile(Object var1, long var2)方法用于在对象var1的偏移地址var2位置volatile读取一个int。putIntVolatile(Object var1, long var2, int var4)方法用于在var1对象的var2偏移地址位置volatile写入一个int类型的var4。
+getIntVolatile方法用于在对象指定偏移地址处volatile读取一个int。putIntVolatile方法用于在对象指定偏移地址处volatile写入一个int。
 
 volatile读写相对普通读写是更加昂贵的，因为需要保证可见性和有序性，而与volatile写入相比putOrderedXX写入代价相对较低，putOrderedXX写入不保证可见性，但是保证有序性，所谓有序性，就是保证指令不会重排序。
 
@@ -104,7 +104,7 @@ public native void freeMemory(long var1);
 ```
 
 ## CAS相关
-JUC中大量运用了CAS操作，可以说CAS操作是JUC的基础，因此CAS操作是非常重要的。Usafe中提供了int,long和Object的CAS操作：
+JUC中大量运用了CAS操作，可以说CAS操作是JUC的基础，因此CAS操作是非常重要的。Unsafe中提供了int,long和Object的CAS操作：
 ```
 public final native boolean compareAndSwapObject(Object var1, long var2, Object var4, Object var5);
 
@@ -127,7 +127,7 @@ public native int arrayBaseOffset(Class<?> var1);
 
 public native int arrayIndexScale(Class<?> var1);
 ```
-staticFieldOffset(Field var1) 用法用于获取静态属性Field在对象中的偏移量，读写静态属性时必须获取其偏移量。objectFieldOffset(Field var1)方法用于获取非静态属性Field在对象实例中的偏移量，读写对象的非静态属性时会用到这个偏移量。staticFieldBase(Field var1)方法用于返回Field所在的对象。arrayBaseOffset(Class<?> var1)方法用于返回数组中第一个元素实际地址相对整个数组对象的地址的偏移量。arrayIndexScale(Class<?> var1)方法用于计算数组中第一个元素所占用的内存空间。
+staticFieldOffset方法用于获取静态属性Field在对象中的偏移量，读写静态属性时必须获取其偏移量。objectFieldOffset方法用于获取非静态属性Field在对象实例中的偏移量，读写对象的非静态属性时会用到这个偏移量。staticFieldBase方法用于返回Field所在的对象。arrayBaseOffset方法用于返回数组中第一个元素实际地址相对整个数组对象的地址的偏移量。arrayIndexScale方法用于计算数组中第一个元素所占用的内存空间。
 
 ## 线程调度
 ```
@@ -141,21 +141,24 @@ public native void monitorExit(Object var1);
 
 public native boolean tryMonitorEnter(Object var1);
 ```
-park(boolean var1, long var2)方法和unpark(Object var1)方法相信看过LockSupport类的都不会陌生，这两个方法主要用来挂起和唤醒线程。LockSupport中的park和unpark方法正是通过Unsafe来实现的：
+park方法和unpark方法相信看过LockSupport类的都不会陌生，这两个方法主要用来挂起和唤醒线程。LockSupport中的park和unpark方法正是通过Unsafe来实现的：
 ```
 // 挂起线程
 public static void park(Object blocker) {
     Thread t = Thread.currentThread();
     setBlocker(t, blocker); // 通过Unsafe的putObject方法设置阻塞阻塞当前线程的blocker
-    UNSAFE.park(false, 0L); // 通过Unsafe的park方法来阻塞当前线程
-    setBlocker(t, null); // 
+    UNSAFE.park(false, 0L); // 通过Unsafe的park方法来阻塞当前线程，注意此方法将当前线程阻塞后，当前线程就不会继续往下走了，直到其他线程unpark此线程
+    setBlocker(t, null); // 清除blocker
 }
 
+// 唤醒线程
 public static void unpark(Thread thread) {
     if (thread != null)
         UNSAFE.unpark(thread);
 }
 ```
+monitorEnter方法和monitorExit方法用于加锁，Java中的synchronized锁就是通过这两个指令来实现的。
+
 
 ## 类加载
 ```
@@ -169,6 +172,11 @@ public native boolean shouldBeInitialized(Class<?> var1);
 
 public native void ensureClassInitialized(Class<?> var1);
 ```
+defineClass方法定义一个类，用于动态地创建类。
+defineAnonymousClass用于动态的创建一个匿名内部类。
+allocateInstance方法用于创建一个类的实例，但是不会调用这个实例的构造方法，如果这个类还未被初始化，则初始化这个类。
+shouldBeInitialized方法用于判断是否需要初始化一个类。
+ensureClassInitialized方法用于保证已经初始化过一个类。
 
 ## 内存屏障
 ```
@@ -178,7 +186,7 @@ public native void storeFence();
 
 public native void fullFence();
 ```
+loadFence：保证在这个屏障之前的所有读操作都已经完成。
+storeFence：保证在这个屏障之前的所有写操作都已经完成。
+fullFence：保证在这个屏障之前的所有读写操作都已经完成。
 
-
-
-https://blog.csdn.net/u011392897/article/details/60365145
