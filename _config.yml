@@ -1,11 +1,11 @@
 # ---------------- #
 #   Main Configs   #
 # ---------------- #
-baseurl: /cafesolo
-url: https://zhong0316.github.io/
+baseurl:
+url: https://zhong0316.github.io
 date_format: "ordinal"
-title: cafesolo
-subtitle: "个人博客"
+title: 赵忠伟
+subtitle: "赵忠伟的个人博客"
 description: "赵忠伟的个人博客"
 keywords:
 timezone: Asia/Shanghai
