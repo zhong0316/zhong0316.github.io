@@ -103,7 +103,7 @@ gitment:
 # https://github.com/gitalk/gitalk#install
 gitalk:
     owner: zhong0316
-    repo: cafesolo
+    repo: zhong0316.github.io
     clientID: d3400e7e5e4bbb4bd3ef
     clientSecret: 1e28db73acae29af4aca8077fa3292a567d5f4c2
     admin: ['zhong0316']
