@@ -112,8 +112,7 @@ public final native boolean compareAndSwapInt(Object var1, long var2, int var4, 
 
 public final native boolean compareAndSwapLong(Object var1, long var2, long var4, long var6);
 ```
-CAS一般用于乐观锁，它在Java中有广泛的应用，ConcurrentHashMap，ConcurrentLinkedQueue中都有用到CAS来实现乐观锁。后面会做详细的分析。
-
+CAS一般用于乐观锁，它在Java中有广泛的应用，ConcurrentHashMap，ConcurrentLinkedQueue中都有用到CAS来实现乐观锁。
 
 ## 偏移量相关
 ```
