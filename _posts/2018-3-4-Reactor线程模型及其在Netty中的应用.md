@@ -268,5 +268,7 @@ public class TimeServerHandler extends ChannelHandlerAdapter {
 ```
 
 ## 参考资料
+
 [Scalable IO in Java](http://gee.cs.oswego.edu/dl/cpjslides/nio.pdf)
+
 [Netty 系列之 Netty 线程模型](https://www.infoq.cn/article/netty-threading-model)
