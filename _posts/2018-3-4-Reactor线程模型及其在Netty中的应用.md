@@ -9,7 +9,7 @@ keywords: 多线程, Netty, Reactor
 <h1 align="center">Reactor线程模型及其在Netty中的应用</h1>
 
 ## 什么是Reactor线程模型
-线程模型大致可以分为：
+Java中线程模型大致可以分为：
 1. 单线程模型
 2. 多线程模型
 3. 线程池模型(executor)
@@ -184,9 +184,89 @@ class Handler implements Runnable {
 ## 多线程模型（多Reactor）
 比起多线程单Rector模型，它是将Reactor分成两部分，mainReactor负责监听并Accept新连接，然后将建立的socket通过多路复用器（Acceptor）分派给subReactor。subReactor负责多路分离已连接的socket，读写网络数据；业务处理功能，其交给worker线程池完成。通常，subReactor个数上可与CPU个数等同。其模型图如下：
 <div align="center">
-    <img src="{{ site.url }}/images/posts/java/UsingMultiplyReactos-Reactor.png" alt="UsingMultiplyReactos"/>
+    <img src="{{ site.url }}/images/posts/java/UsingMultiplyReactors-Reactor.png" alt="UsingMultiplyReactors"/>
 </div>
 
+## Netty线程模型
+Netty的线程模型类似于Reactor模型。Netty中ServerBootstrap用于创建服务端，下图是它的结构：
+<div align="center">
+    <img src="{{ site.url }}/images/posts/java/Netty-ServerBootstrap.png" alt="Netty-ServerBootstrap"/>
+</div>
+ServerBootstrap继承自AbstractBootstrap，AbstractBootstrap中的group属性就是Netty中的Acceptor，用于接受请求。而ServerBootstrap中的childGroup对应于Reactor模型中的worker线程池。
+请求过来后Netty从group线程池中选出一个线程来建立连接，连接建立后委派给childGroup中的worker线程处理。
+服务端线程模型工作原理如下图：
+<div align="center">
+    <img src="{{ site.url }}/images/posts/java/Netty服务端线程工作流程.png" alt="Netty服务端线程工作流程"/>
+</div>
+
+下面是一个完整的Netty服务端的例子：
+
+```
+public class TimeServer {
+    public void bind(int port) {
+        // Netty的多Reactor线程模型，bossGroup是Acceptor线程池，用于接受连接。workGroup是Worker线程池，处理业务。
+        // bossGroup是Acceptor线程池
+        EventLoopGroup bossGroup = new NioEventLoopGroup();
+        // workGroup是Worker线程池
+        EventLoopGroup workGroup = new NioEventLoopGroup();
+        try {
+            ServerBootstrap b = new ServerBootstrap();
+            b.group(bossGroup, workGroup).channel(NioServerSocketChannel.class)
+                    .option(ChannelOption.SO_BACKLOG, 1024)
+                    .childHandler(new ChildChannelHandler());
+            // 绑定端口，同步等待成功
+            ChannelFuture f = b.bind(port).sync();
+            // 等待服务端监听端口关闭
+            f.channel().closeFuture().sync();
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            bossGroup.shutdownGracefully();
+            workGroup.shutdownGracefully();
+        }
+    }
+    private class ChildChannelHandler extends ChannelInitializer<SocketChannel> {
+        @Override
+        protected void initChannel(SocketChannel ch) throws Exception {
+            ch.pipeline().addLast(new TimeServerHandler());
+        }
+    }
+}
+
+public class TimeServerHandler extends ChannelHandlerAdapter {
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
+            throws Exception {
+        ctx.close();
+    }
+
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg)
+            throws Exception {
+        // msg转Buf
+        ByteBuf buf = (ByteBuf) msg;
+        // 创建缓冲中字节数的字节数组
+        byte[] req = new byte[buf.readableBytes()];
+        // 写入数组
+        buf.readBytes(req);
+        String body = new String(req, "UTF-8");
+        String currenTime = "QUERY TIME ORDER".equalsIgnoreCase(body) ? new Date(
+                System.currentTimeMillis()).toString() : "BAD ORDER";
+        // 将要返回的信息写入Buffer
+        ByteBuf resp = Unpooled.copiedBuffer(currenTime.getBytes());
+        // buffer写入通道
+        ctx.write(resp);
+    }
+
+    @Override
+    public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
+        // write读入缓冲数组后通过invoke flush写入通道
+        ctx.flush();
+    }
+}
+```
 
 ## 参考资料
 [Scalable IO in Java](http://gee.cs.oswego.edu/dl/cpjslides/nio.pdf)
+[Netty 系列之 Netty 线程模型](https://www.infoq.cn/article/netty-threading-model)
