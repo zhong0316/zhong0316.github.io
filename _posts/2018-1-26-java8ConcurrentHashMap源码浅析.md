@@ -8,16 +8,16 @@ keywords: ConcurrentHashMap, 并发
 
 <h1 align="center">Java8ConcurrentHashMap</h1>
 
-在前面一篇文章中我们谈了Java7中的ConcurrentHashMap：[java7ConcurrentHashMap源码浅析]({{ site.url }}/2018/01/26/java7ConcurrentHashMap源码浅析)，主要分析了Java7中ConcurrentHashMap的分段锁设计，数据结构以及一些常用的操作。Java8中ConcurrentHashMap有了一些重要改进，本篇文章主要想谈谈Java8中ConcurrentHashMap中的一些改进。
+在前面一篇文章中我们谈了Java7中的ConcurrentHashMap：[java7ConcurrentHashMap源码浅析]({{ site.url }}/2018/01/26/java7ConcurrentHashMap源码浅析)，分析了Java7中ConcurrentHashMap的分段锁设计，数据结构以及一些常用的操作。Java8中ConcurrentHashMap有了一些重要改进，接下来将要谈谈Java8中做的这些改进。
 
 ## 数据结构
-Java7中ConcurrentHashMap是采用了数组+链表的数据结构。我们都知道链表的查找效率是低下的，其平均的查找时间是O(logn)，其中n是链表的长度。当链表较长时，查找可能会成为哈希表的性能瓶颈。针对这个问题，Java8中对ConcurrentHashMap的数据结构进行了优化，采用了数组+链表+红黑树的数据结构。当数组中某个链表的长度超过一定的阈值之后，会将其转换成红黑树，以提高查找效率。当红黑树节点数少于一定阈值后，还能降红黑树逆退化成链表。下图是Java8ConcurrentHashMap的数据结构示意图：
+Java7中ConcurrentHashMap是采用了<font color="#FF0000">数组+链表</font>的数据结构。我们都知道链表的查找效率是低下的，其平均的查找时间是O(logn)，其中n是链表的长度。当链表较长时，查找可能会成为哈希表的性能瓶颈。针对这个问题，Java8中对ConcurrentHashMap的数据结构进行了优化，采用了<font color="#FF0000">数组+链表+红黑树</font>的数据结构。当数组中某个链表的长度超过一定的阈值之后，会将其转换成红黑树，以提高查找效率。当红黑树节点数少于一定阈值后，还能降红黑树逆退化成链表。下图是Java8ConcurrentHashMap的数据结构示意图：
 
 <div align="center">
     <img src="{{ site.url }}/images/posts/java/Java8ConcurrentHashMap结构.png" alt="Java8ConcurrentHashMap"/>
 </div>
 
-Java8中还取消了Java7中的分段锁设计。Java7中ConcurrentHashMap有一个“currencyLevel”的概念，这个字段指定了哈希表共有多少把锁，在哈希表初始化完成之后不可更改。Java8中ConcurrentHashMap加锁的粒度改为数组中的节点。其实本质上区别不大，都是一种锁条带化(lock-stripping)的思想。
+Java8中取消了Java7中的分段锁设计。Java7中ConcurrentHashMap有一个“currencyLevel”的概念，指定了哈希表共有多少把锁，在哈希表初始化完成之后不可更改。Java8中ConcurrentHashMap加锁的粒度改为数组中的节点。其实本质上区别不大，都是一种锁条带化(lock-stripping)的思想。
 
 ## put操作
 
@@ -91,7 +91,7 @@ final V putVal(K key, V value, boolean onlyIfAbsent) {
     return null;
 }
 ```
-put操作时，首先会检查哈希表是否初始化过了，如果没有初始化则进行初始化。找到待新加的元素在哈希表中的索引位置，如果当前节点是null，则初始化这个位置的节点，并设置value。如果当前节点的hashcode为`MOVED`，则说明哈希表正在重建中。<font color="#FF0000">此时，线程不会阻塞等待哈希表重建完成，并且会帮助重建，"人多力量大"。多线程重建，rehash自然会更快一点。这是Java8中针对ConcurrentHashMap重要的一个优化。</font>具体怎么帮助重建后面会详细讲解。
+put操作时，首先会检查哈希表是否初始化过了，如果没有初始化则进行初始化。找到待新加的元素在哈希表中的索引位置，如果当前节点是null，则初始化这个位置的节点，并设置value。如果当前节点的hashcode为`MOVED`，则说明哈希表正在重建。<font color="#FF0000">此时，线程不会阻塞等待哈希表重建完成，并且会帮助重建。多线程重建，每个线程负责一部分节点迁移。rehash自然会更快一点。这是Java8中针对ConcurrentHashMap重要的一个优化。</font>具体怎么帮助重建后面会详细讲解。
 
 ## 扩容分析
 Java8中采用多线程方式对ConcurrentHashMap进行扩容，扩容时主要通过sizeCtl和transferIndex这两个属性来进行并发控制，sizeCtl标识当前表的状态：
@@ -353,8 +353,8 @@ public V get(Object key) {
 ```
 
 ## 总结
-1. Java8 ConcurrentHashMap取消了分段锁的设计，加锁粒度是哈希表Node[] table数组的每个元素。
-2. 采用多线程方式扩容哈希表，每个线程负责一个stride，加速了扩容过程。
+1. Java8 ConcurrentHashMap取消了分段锁的设计，加锁粒度是哈希表Node[] table数组的每个元素。本质上都是一种锁粗化的思想。
+2. 采用多线程方式扩容哈希表，每个线程负责一部分节点的迁移工作，加速了扩容过程。
 3. 在Java7 ConcurrentHashMap数组+链表的基础上加入了红黑树，进一步提高查找效率。
 
 ## 参考资料

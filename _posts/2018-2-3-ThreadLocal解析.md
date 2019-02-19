@@ -9,7 +9,7 @@ keywords: java, ThreadLocal
 <h1 align="center">ThreadLocal解析</h1>
 
 ## 原理
-线程安全问题的根源在于多线程之间的数据共享，如果没有数据共享，则就没有多线程并发安全问题。ThreadLocal就是用来避免多线程数据共享从而避免多线程并发安全问题。它为每个线程保留一个对象的副本，避免了多线程数据共享。每个线程作用的对象都是线程私有的一个对象拷贝。一个线程的对象副本无法被其他线程访问到（InheritableThreadLocal除外）。
+产生线程安全问题的根源在于多线程之间的数据共享。如果没有数据共享，就没有多线程并发安全问题。ThreadLocal就是用来避免多线程数据共享从而避免多线程并发安全问题。它为每个线程保留一个对象的副本，避免了多线程数据共享。每个线程作用的对象都是线程私有的一个对象拷贝。一个线程的对象副本无法被其他线程访问到（InheritableThreadLocal除外）。
 注意ThreadLocal并不是一种多线程并发安全问题的解决方案，因为ThreadLocal的原理在于避免多线程数据共享从而实现线程安全。
 来看一下JDK文档中ThreadLocal的描述：
 ```
@@ -189,7 +189,7 @@ public class InheritableThreadLocalExample {
 
 ```
 运行上述代码会发现在子线程中可以获取父线程的InheritableThreadLocal中的变量，但是无法获取父线程的ThreadLocal中的变量。
-分析InheritableThreadLocal的源码可以知道其是ThreadLocal的子类：
+InheritableThreadLocal是ThreadLocal的子类：
 ```
 public class InheritableThreadLocal<T> extends ThreadLocal<T> {
     ...
@@ -217,14 +217,14 @@ private void init(ThreadGroup g, Runnable target, String name,
     ...
 }
 ```
-可以看到一个线程在初始化的时候，会判断创建这个线程的父线程的inheritableThreadLocals是否为空，如果不为空，则会拷贝父线程inheritableThreadLocals到当前创建的子线程的inheritableThreadLocals中去。
+一个线程在初始化的时候，会判断创建这个线程的父线程的inheritableThreadLocals是否为空，如果不为空，则会拷贝父线程inheritableThreadLocals到当前创建的子线程的inheritableThreadLocals中去。
 当我们在子线程调用get()方法时，InheritableThreadLocal的getMap()方法返回的是Thread中的inheritableThreadLocals，而子线程的inheritableThreadLocals已经拷贝了父线程的inheritableThreadLocals，因此在子线程中可以读取父线程中的inheritableThreadLocals中保存的对象。
 
 
 ## 总结
 * ThreadLocal为每个线程保留对象副本，多线程之间没有数据共享。因此它并不解决线程间共享数据的问题。
-* 每个线程持有一个 Map 并维护了 ThreadLocal 对象与具体实例的映射，该 Map 由于只被持有它的线程访问，故不存在线程安全以及锁的问题。
-* ThreadLocalMap 的 Entry 对 ThreadLocal 的引用为弱引用，避免了 ThreadLocal 对象无法被回收的问题。
-* ThreadLocalMap 的 set 方法通过调用 replaceStaleEntry 方法回收键为 null 的 Entry 对象的值（即为具体实例）以及 Entry 对象本身从而防止内存泄漏。
+* 每个线程持有一个Map并维护了ThreadLocal对象与具体实例的映射，该Map由于只被持有它的线程访问，故不存在线程安全以及锁的问题。
+* ThreadLocalMap的Entry对ThreadLocal的引用为弱引用，避免了ThreadLocal对象无法被回收的问题。
+* ThreadLocalMap的set方法通过调用 replaceStaleEntry 方法回收键为 null的Entry 对象的值（即为具体实例）以及Entry对象本身从而防止内存泄漏。
 * ThreadLocal 适用于变量在线程间隔离且在方法间共享的场景。
 * ThreadLocal中的变量是线程私有的，其他线程无法访问到另外一个线程的变量。但是InheritableThreadLocal是个例外，通过InheritableThreadLocal可以在子线程中访问到父线程中的变量。

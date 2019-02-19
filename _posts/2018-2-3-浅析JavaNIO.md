@@ -9,7 +9,7 @@ keywords: java, NIO, IO
 <h1 align="center">浅析Java NIO</h1>
 
 ## NIO概述
-Java NIO全称为Non-blocking IO或者New IO，从名字我们知道NIO是非阻塞的IO，而Java IO则是阻塞的IO。在一般的情况下阻塞是低效率的，特别是在高并发的场景下面，如果服务端的请求处理都是阻塞的，后果不堪设想。因此Java引入了NIO。NIO相比IO来说主要有以下几个区别：
+Java NIO全称为Non-blocking IO或者New IO，从名字我们知道NIO是非阻塞的IO，而Java IO则是阻塞的IO。在一般的情况下阻塞是低效率的，特别是在高并发的场景下面，因此Java引入了NIO。NIO相比IO来说主要有以下几个区别：
 1. NIO是面向缓冲区的，IO则面向流。
 * 标准的IO编程接口是面向字节流和字符流的。而NIO是面向通道和缓冲区的，数据总是从通道中读到buffer缓冲区内，或者从buffer缓冲区写入到通道中；（ NIO中的所有I/O操作都是通过一个通道开始的。）
 * Java IO面向流意味着每次从流中读一个或多个字节，直至读取所有字节，它们没有被缓存在任何地方；

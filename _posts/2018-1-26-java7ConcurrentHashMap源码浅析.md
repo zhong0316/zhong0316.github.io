@@ -8,8 +8,7 @@ keywords: ConcurrentHashMap, 并发
 
 <h1 align="center">Java7 ConcurrentHashMap源码浅析</h1>
 
-Java中的哈希表主要包括：HashMap，HashTable，ConcurrentHashMap，LinkedHashMap和TreeMap等。HashMap是无序的，并且不是线程安全的，在多线程环境下会出现数据安全性问题，典型的问题是多线程同时rehash过程中产生的死循环问题。LinkedHashMap和TreeMap都是有序的，但是两者的有序机制不同：LinkedHashMap是通过链表的结构保证元素有序，而TreeMap是一种红黑树结构，通过堆排序保证元素有序。在Java6中HashMap，HashTable和ConcurrentHashMap都是采用数组+链表的数据结构，在Java8之后则采用数组+链表+红黑树的数据结构。HashTable和ConcurrentHashMap都是线程安全的，保证线程安全无外乎加锁，但是二者加锁的粒度不通，HashTable整个表就一把锁，它的get和put都是通过synchronized保证安全，在多线程竞争激烈的情况下，它的性能会成为问题。本文讲解的ConcurrentHashMap是Java7版本。Java8中对哈希表做了较大改进，暂不做分析。
-
+Java中的哈希表主要包括：HashMap，HashTable，ConcurrentHashMap，LinkedHashMap和TreeMap等。HashMap是无序的，并且不是线程安全的，在多线程环境下会出现数据安全性问题，典型的问题是多线程同时rehash过程中产生的死循环问题。LinkedHashMap和TreeMap都是有序的，但是两者的有序机制不同：LinkedHashMap是通过链表的结构保证元素有序，而TreeMap是一种红黑树结构，通过堆排序保证元素有序。在Java6中HashMap，HashTable和ConcurrentHashMap都是采用数组+链表的数据结构，在Java8之后则采用数组+链表+红黑树的数据结构。HashTable和ConcurrentHashMap都是线程安全的，保证线程安全无外乎加锁，但是二者加锁的粒度不通，HashTable整个表就一把锁，它的get和put都是通过synchronized保证安全，在多线程竞争锁激烈的情况下，会出现性能问题。本文讲解的ConcurrentHashMap是Java7版本。
 
 ## 数据结构
 
@@ -21,12 +20,12 @@ Java7中ConcurrentHashMap采用数组+链表的数据结构，哈希表整体上
 
 ## ConcurrentHashMap锁分段
 
-锁粗化是锁优化的一种重要措施，而锁粗化又包含"lock-splitting"（锁定拆分）和"lock-stripping"（锁定条带化）。读写锁分离是一种典型的锁定拆分方式，JUC中的ReentrantReadWriteLock就是一种读写分离锁，锁定条带化是指将一把“大锁”拆分成若干个“小锁”来降低锁的竞争。ConcurrentHashMap就是通过lock-stripping来做锁的优化。我们都知道ConcurrentHashMap是分段的，它的表是一个Segment数组：
+<font color="#FF0000">锁粗化是锁优化的一种重要措施，而锁粗化又包含"lock-splitting"（锁定拆分）和"lock-stripping"（锁条带化）。读写锁分离是一种典型的锁定拆分方式，JUC中的ReentrantReadWriteLock就是一种读写分离锁，锁定条带化是指将一把“大锁”拆分成若干个“小锁”来降低锁的竞争。</font>ConcurrentHashMap就是通过锁条带化来做锁的优化。我们都知道ConcurrentHashMap是分段的，它的表是一个Segment数组：
 ```
 /**
-     * The segments, each of which is a specialized hash table
-     */
-    final Segment<K,V>[] segments;
+ * The segments, each of which is a specialized hash table
+ */
+final Segment<K,V>[] segments;
 ```
 而每个Segment都是继承了一个ReentrantLock：
 ```
@@ -84,7 +83,7 @@ public V put(K key, V value) {
 }
 ```
 ConcurrentHashMap不支持插入null的值，因此首先校验value是否为null。如果value是null则抛出异常。
-注意这里计算segment索引方式应该是: `(hash >>> segmentShift) & segmentMask;` 而不是hash % segment数组长度。其实这里面有一个优化，因为取模"%"操作相对位运算来说是很慢的，因此这里是用位运算来得到segment索引。而当segment数组长度是2的幂次方记为segmentSize时:`hash % segmentSize == hash & (segmentSize - 1)`。这里不做证明。因此segmentSize必须是2的幂次方。来看看Segment中的put()方法：
+注意这里计算segment索引方式是: `(hash >>> segmentShift) & segmentMask;` 而不是hash % segment数组长度。<font color="#FF0000">这儿是一个优化：因为取模"%"操作相对位运算来说是很慢的，因此这里是用位运算来得到segment索引。而当segment数组长度是2的幂次方记为segmentSize时:`hash % segmentSize == hash & (segmentSize - 1)`。</font>这里不做证明。因此segmentSize必须是2的幂次方。来看看Segment中的put()方法：
 
 ```
 final V put(K key, int hash, V value, boolean onlyIfAbsent) {
@@ -225,7 +224,7 @@ private void rehash(HashEntry<K,V> node) {
 
 ## remove操作
 
-````
+```
 public V remove(Object key) {
     int hash = hash(key);
     Segment<K,V> s = segmentForHash(hash); // key落在哪个segment中
@@ -267,11 +266,11 @@ final V remove(Object key, int hash, Object value) { // Segment的remove方法
     return oldValue;
 }
 ```
-remove时，首先会找到这个key落在哪个Segment中，如果key没有落在任何一个Segment中，说明key不存在于哈希表中，直接返回null。找到具体的Segment后，调用Segment的remove方法来进行删除：找到key落在Segment的table数组中的哪个链表中，遍历链表，如果要删除的节点是当前链表的头节点，则直接修改链表的头指针为当前节点的next节点；如果要删除的节点不是头节点，继续遍历找到目标节点，修改目标节点的前置节点的next指针指向目标节点的next节点完成操作。总的来说remove操作过程还是很清晰的。
+remove时，首先会找到这个key落在哪个Segment中，如果key没有落在任何一个Segment中，说明key不存在，直接返回null。找到具体的Segment后，调用Segment的remove方法来进行删除：找到key落在Segment的table数组中的哪个链表中，遍历链表，如果要删除的节点是当前链表的头节点，则直接修改链表的头指针为当前节点的next节点；如果要删除的节点不是头节点，继续遍历找到目标节点，修改目标节点的前置节点的next指针指向目标节点的next节点完成操作。
 安全性分析：remove时首先会加锁，其他mutable请求都是会被阻塞的，对于读请求也是安全的。如果读取的key不是当前要删除的key不会有任何问题。如果读取的key恰巧是当前需要删除key：读请求在remove之前，这时可以读取到；如果读请求在remove操作之后，由于HashEntry的next指针都是volatile的，所以读线程也是可以及时发现这个key已经被删除了的。也是安全的。
 
 ## size操作
-ConcurrentHashMap的size操作在Java7实现还是比较有意思的。其首先会进行若干次尝试，每次对各个Segment的count求和，如果任意前后两次求和结果相同，则说明在这段时间之内各个Segment的元素个数没有改变，直接返回当前的求和结果就行了。如果超过一定重试次数之后，会采取悲观策略，直接锁定各个Segment，然后依次求和。注意这里是锁定所有Segment，因此在采取悲观策略时整个哈希表都不能有写入操作。这里先乐观再悲观的策略和前面的put操作中的scanAndLockForPut有异曲同工之妙。
+ConcurrentHashMap的size操作在Java7实现还是比较有意思的。<font color="#FF0000">其首先会进行若干次尝试，每次对各个Segment的count求和，如果任意前后两次求和结果相同，则说明在这段时间之内各个Segment的元素个数没有改变，直接返回当前的求和结果就行了。如果超过一定重试次数之后，会采取悲观策略，直接锁定各个Segment，然后依次求和。</font>注意这里是锁定所有Segment，因此在采取悲观策略时整个哈希表都不能有写入操作。这里先乐观再悲观的策略和前面的put操作中的scanAndLockForPut有异曲同工之妙。
 
 ```
 public int size() {

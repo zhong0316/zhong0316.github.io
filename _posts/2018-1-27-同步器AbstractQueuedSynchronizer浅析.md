@@ -7,7 +7,7 @@ keywords: Java, 锁, AQS, 多线程, 并发
 ---
 
 <h1 align="center">同步器AbstractQueuedSynchronizer浅析</h1>
-Java中的锁主要有：synchronized锁和JUC(java.util.concurrent)locks包中的锁。synchronized锁是JVM的内置锁，底层通过"monitorenter"和"monitorexit"字节码指令实现。JUC中的锁支持公平锁（synchronized锁是非公平锁），读写锁，锁请求中断，锁请求超时等。今天要说的AbstractQueuedSynchronizer（AQS）是JUC锁的基础。JUC中的ReentrantLock，ReentrantReadWriteLock，Semaphore，CountDownLatch等都用到了AQS作为同步器。可以说AQS是JUC(java.util.concurrent)locks包中这些锁的基础。
+Java中的锁主要有：synchronized锁和JUC(java.util.concurrent)locks包中的锁。synchronized锁是JVM的内置锁，底层通过"monitorenter"和"monitorexit"字节码指令实现。JUC中的锁支持公平锁（synchronized锁是非公平锁），读写锁，锁请求中断，锁请求超时等。今天要说的AbstractQueuedSynchronizer（AQS）是JUC锁的基础。JUC中的ReentrantLock，ReentrantReadWriteLock，Semaphore，CountDownLatch等都用到了AQS作为同步器。可以说AQS是JUC(java.util.concurrent)的基础。
 
 ## 同步队列
 AQS本质上是一个FIFO的队列，它的等待队列是“CLH”（Craig, Landin, and Hagersten）队列的变种。CLH队列通常用作自旋锁（spinlocks）。
@@ -112,7 +112,7 @@ AQS中已经实现的与加锁和解锁有关的方法如下：
 
 ## 独占锁的获取和释放
 ### 独占锁的获取
-acquire用于获取独占锁，请求不可中断，首先会通过tryAcquire方法获取锁，如果获取失败，则进入等待队列中。tryAcquire在AQS中是一个protected的方法，需要子类去实现具体的乐观获取独占锁的方式：
+acquire用于获取独占锁，请求不可中断，首先会通过tryAcquire方法获取锁，如果获取失败，则进入等待队列中。tryAcquire方法在AQS中默认抛出一个异常，需要子类去实现具体的乐观获取独占锁的方式：
 ```
 protected boolean tryAcquire(int arg) {
     throw new UnsupportedOperationException();
@@ -121,6 +121,7 @@ protected boolean tryAcquire(int arg) {
 如果tryAcquire获取失败，则通过addWaiter方法生成一个关联当前线程的waiter节点放入队列中，再通过acquireQueued方法获取锁。
 
 ```
+// 将当前线程放入队列中等待
 private Node addWaiter(Node mode) {
     Node node = new Node(Thread.currentThread(), mode); // 创建关联当前线程的等待节点
     // Try the fast path of enq; backup to full enq on failure
@@ -159,7 +160,7 @@ final boolean acquireQueued(final Node node, int arg) {
     }
 }
 ```
-acquireQueued方法中是一个死循环，如果判断当前节点是队列中的第一个节点并且通过tryAcquire获取到锁之后通过setHead将当前节点设置为head，在setHead方法中将head的thread和prev指针置为null，因为head不会关联任何线程。如果获取锁失败，则通过shouldParkAfterFailedAcquire判断当前节点获取锁失败后是否需要挂起当前线程，如果需要挂起当前线程，则通过parkAndCheckInterrupt方法来挂起当前线程，等待它的predecessor节点唤醒：
+acquireQueued方法中是一个循环，如果判断当前节点是队列中的第一个节点并且通过tryAcquire获取到锁之后通过setHead将当前节点设置为head，在setHead方法中将head的thread和prev指针置为null，因为head不会关联任何线程。如果获取锁失败，则通过shouldParkAfterFailedAcquire判断当前节点获取锁失败后是否需要挂起当前线程，如果需要挂起当前线程，则通过parkAndCheckInterrupt方法来挂起当前线程，等待它的predecessor节点唤醒：
 ```
 private static boolean shouldParkAfterFailedAcquire(Node pred, Node node) {
     int ws = pred.waitStatus;
@@ -334,7 +335,7 @@ doReleaseShared方法中，判断当前节点的waitStatus，如果为SIGNAL，�
 </div>
 
 ## 超时和中断
-AQS支持加锁超时和中断机制，这也是JUC锁相对synchronized锁的一个重要优势。AQS支持独占锁和共享锁的超时和中断，`public final boolean tryAcquireNanos(int arg, long nanosTimeout)`用于在超时时间之内获取独占锁，`public final boolean tryAcquireSharedNanos(int arg, long nanosTimeout)`用于在超时时间之内获取共享锁。
+AQS支持加锁超时和中断机制，这也是JUC锁相对synchronized锁的优势。AQS支持独占锁和共享锁的超时和中断，`public final boolean tryAcquireNanos(int arg, long nanosTimeout)`用于在超时时间之内获取独占锁，`public final boolean tryAcquireSharedNanos(int arg, long nanosTimeout)`用于在超时时间之内获取共享锁。
 ```
 public final boolean tryAcquireNanos(int arg, long nanosTimeout)
         throws InterruptedException {

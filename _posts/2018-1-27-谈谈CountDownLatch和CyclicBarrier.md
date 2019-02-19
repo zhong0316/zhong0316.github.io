@@ -7,8 +7,7 @@ keywords: Java, 同步, 多线程
 ---
 
 <h1 align="center">谈谈CountDownLatch和CyclicBarrier</h1>
-Java中CountDownLatch和CyclicBarrier功能有很多相似之处，两者都是用来做多线程同步。
-如果我们需要在"main"线程中等待多线程任务执行完成之后再继续往下，怎么做呢？答案就是CountDownLatch和CyclicBarrier。
+Java中CountDownLatch和CyclicBarrier都是用来做多线程同步的。下面分析一下他们功能的异同。
 
 ## CountDownLatch
 CountDownLatch基于AQS([同步器AbstractQueuedSynchronizer浅析]({{ site.url }}/2018/01/27/同步器AbstractQueuedSynchronizer浅析))，CountDownLatch中有一个内部类Sync，Sync继承自AbstractQueuedSynchronizer。

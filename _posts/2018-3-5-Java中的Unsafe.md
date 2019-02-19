@@ -7,7 +7,7 @@ keywords: Unsafe, CAS, 自旋
 ---
 
 <h1 align="center">Java中的Unsafe</h1>
-Java和C++语言的一个重要区别就是Java中我们无法直接操作一块内存区域，不能像C++中那样可以自己申请内存和释放内存。这一切都是由JVM来帮我们实现。但是Java中有一个例外，就是Unsafe类。
+Java和C++语言的一个重要区别就是Java中我们无法直接操作一块内存区域，不能像C++中那样可以自己申请内存和释放内存。Java中的Unsafe类为我们提供了类似C++手动管理内存的能力。
 Unsafe类，全限定名是`sun.misc.Unsafe`，从名字中我们可以看出来这个类对普通程序员来说是“危险”的，一般应用开发者不会用到这个类。
 
 Unsafe类是"final"的，不允许继承。且构造函数是private的:
