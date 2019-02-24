@@ -93,7 +93,7 @@ true
 ```
 public static final Class<Integer>  TYPE = (Class<Integer>) Class.getPrimitiveClass("int");
 ```
-<font color="#FF0000">Java中为原生类型(boolean,byte,char,short,int,long,float,double)和void都创建了一个预先定义好的类型，可以通过包装类的TYPE静态属性获取。上述的Integer类中TYPE和`int.class`是等价的。</font>
+**Java中为原生类型(boolean,byte,char,short,int,long,float,double)和void都创建了一个预先定义好的类型，可以通过包装类的TYPE静态属性获取。上述的Integer类中TYPE和`int.class`是等价的。**
 
 ## hashCode方法
 对象的哈希码主要用于在哈希表中的存放和查找等。Java中对于对象hashCode方法的规约如下：
@@ -206,7 +206,7 @@ Java要求一个类的**equals方法和hashCode方法同时覆写**。我们刚�
 2. x.clone().getClass() == x.getClass()
 3. x.clone().equals(x)
 
-<font color="#FF0000">一个对象进行clone时，原生类型和包装类型的field的克隆原理不同。对于原生类型是直接复制一个，而对于包装类型，则只是复制一个引用而已，并不会对引用类型本身进行克隆。</font>
+**一个对象进行clone时，原生类型和包装类型的field的克隆原理不同。对于原生类型是直接复制一个，而对于包装类型，则只是复制一个引用而已，并不会对引用类型本身进行克隆。**
 
 ### 浅拷贝
 浅拷贝例子：
@@ -309,7 +309,7 @@ false
 ```
 Man对象的clone方法中，我们先对Man进行了clone，然后对mate属性也进行了拷贝。因此man的mate和manDeepCopy的mate指向了不同的内存地址。也就是深拷贝。
 
-<font color="#FF0000">通常来说对一个对象进行完完全全的深拷贝是不现实的，例如上面的例子中，虽然我们对Man的mate属性进行了拷贝，但是无法对name（String类型）进行拷贝，拷贝的还是引用而已。</font>
+**通常来说对一个对象进行完完全全的深拷贝是不现实的，例如上面的例子中，虽然我们对Man的mate属性进行了拷贝，但是无法对name（String类型）进行拷贝，拷贝的还是引用而已。**
 
 ## toString方法
 Object中默认的toString方法如下：

@@ -4,9 +4,9 @@
 baseurl:
 url: https://zhong0316.github.io
 date_format: "ordinal"
-title: 赵忠伟
-subtitle: "赵忠伟的个人博客"
-description: "赵忠伟的个人博客"
+title: zhong0316|notes
+subtitle: "赵忠伟"
+description: "blog"
 keywords:
 timezone: Asia/Shanghai
 encoding: "utf-8"
