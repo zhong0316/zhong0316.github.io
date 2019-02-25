@@ -7,7 +7,7 @@ keywords: CAS, 乐观锁, 悲观锁
 ---
 
 <h1 align="center">CAS原子操作以及其在Java中的应用</h1>
-CAS（Compare And Set）意为比较并且交换，CAS它是一个原子操作。<font color="#FF0000">CAS操作涉及到三个值：当前内存中的值V，逾期内存中的值E和待更新的值U。如果当前内存中的值V等于预期值E，则将内存中的值更新为U，CAS操作成功。否则不更新CAS操作失败。</font>
+CAS（Compare And Swap）意为比较并且交换，CAS它是一个原子操作。<font color="#FF0000">CAS操作涉及到三个值：当前内存中的值V，逾期内存中的值E和待更新的值U。如果当前内存中的值V等于预期值E，则将内存中的值更新为U，CAS操作成功。否则不更新CAS操作失败。</font>
 CAS在JUC中有广泛的运用，可以说CAS是JUC的基础，没有CAS操作就没有JUC。CAS经常用来实现Java中的乐观锁，相对于Java中的悲观锁synchronized锁，乐观锁不需要挂起和唤醒线程，在高并发情况下，线程频繁挂起和唤醒会影响性能。为了弄清CAS操作，有必要先了解一下乐观锁和悲观锁以及它们之间的区别。
 
 ## 悲观锁和乐观锁
