@@ -88,8 +88,7 @@ pool-1-thread-10 gets job 9 done
 RateLimiter基于令牌桶算法，它的核心思想主要有：
 1. 响应本次请求之后，动态计算下一次可以服务的时间，如果下一次请求在这个时间之前则需要进行等待。SmoothRateLimiter 类中的 nextFreeTicketMicros 就是表示下一次可以响应的时间。例如，如果我们设置QPS为1，本次请求处理完之后，那么下一次最早的能够响应请求的时间一秒钟之后。
 2. RateLimiter 的子类 SmoothBursty 支持处理突发流量请求，例如，我们设置QPS为1，在十秒钟之内没有请求，那么令牌桶中会有10个（假设设置的最大令牌数大于10）空闲令牌，如果下一次请求是 `acquire(20)` ，则不需要等待20秒钟，因为令牌桶中已经有10个空闲的令牌。SmoothRateLimiter 类中的 storedPermits 就是用来表示当前令牌桶中的空闲令牌数。 
-3. RateLimiter 的子类 SmoothWarmingUp 类有一个“热身”（warmup）的概念。例如，如果我们设置QPS为1，当一秒钟之后还没有请求进来，系统进入 cold 阶段（cold interval）。假设过了10秒钟，此时来了一个请求 `acquire(10)` ，系统此时不会一次性直接都拿走这10个令牌，而是逐渐地拿走这些空闲的令牌，最终到令牌桶中没有空闲令牌，系统进入稳定 stable 阶段（stable interval）。从 cold 阶段到 stable 阶段的过程也即是“热身”过程。
-4. RateLimiter支持 `acquire()` 和 `tryAcquire()` 两种类型的令牌获取请求，acquire 请求会阻塞等待，而 tryAcquire 请求不会阻塞等待。
+3. 
 
 
 RateLimiter主要的类的类图如下所示：
@@ -100,7 +99,4 @@ RateLimiter是一个抽象类，主要定义了一些相关的方法：
 
 ![RateLimiter主要方法]({{ site.url }}/images/posts/java/RateLimiter主要方法.png)
 
-`create(double)` 和 `create(double, SleepingStopWatch)` 用于创建 SmoothBursty 类，它是 RateLimiter 的子类，后面会详细讲解。
-
-`create(double, long, TimeUnit)` 和 `create(double, long, TimeUnit, double, SleepingStopWatch)` 用于创建 SmoothWarmingUp 类，它是 RateLimiter 的另一个子类。
 
