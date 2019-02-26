@@ -263,8 +263,8 @@ final long reserveEarliestAvailable(int requiredPermits, long nowMicros) {
 abstract long storedPermitsToWaitTime(double storedPermits, double permitsToTake);
 ```
 上面的代码是 SmoothRateLimiter 中的具体实现。其主要有以下步骤：
-1. resync，这个方法之前已经分析过，这里不再赘述。其主要用来计算当前请求和上次请求之间这段时间需要生成新的 ticket 数量。
-2. 对于 requiredPermits ，RateLimiter 将其分为两个部分：storedPermits 和 freshPermits。storedPermits 代表令牌桶中已经存在的令牌，可以直接拿出来用，freshPermits 代表本次请求需要新生成的 ticket 数量。
+1. resync，这个方法之前已经分析过，这里不再赘述。其主要用来计算当前请求和上次请求之间这段时间需要生成新的 permit 数量。
+2. 对于 requiredPermits ，RateLimiter 将其分为两个部分：storedPermits 和 freshPermits。storedPermits 代表令牌桶中已经存在的令牌，可以直接拿出来用，freshPermits 代表本次请求需要新生成的 permit 数量。
 3. 分别计算 storedPermits 和 freshPermits 拿出来的部分的令牌数所需要的时间，对于 freshPermits 部分的时间比较好计算：直接拿 freshPermits 乘以 
 stableIntervalMicros 就可以得到。而对于需要从 storedPermits 中拿出来的部分则计算比较复杂，这个计算逻辑在 storedPermitsToWaitTime 方法中实现。storedPermitsToWaitTime 方法在 SmoothBursty 和 SmoothWarmingUp 中有不同的实现。storedPermitsToWaitTime 意思就是表示当前请求从 storedPermits 中拿出来的令牌数需要等待的时间，因为 SmoothBursty 中没有“热身”的概念， storedPermits 中有多少个就可以用多少个，不需要等待，因此 storedPermitsToWaitTime 方法在 SmoothBursty 中返回的是0。而它在 SmoothWarmingUp 中的实现后面会着重分析。
 4. 计算到了本次请求需要等待的时间之后，会将这个时间加到 nextFreeTicketMicros 中去。最后从 storedPermits 减去本次请求从这部分拿走的令牌数量。
@@ -331,7 +331,7 @@ static final class SmoothWarmingUp extends SmoothRateLimiter {
 *        0 +----------+-------+--------------→ storedPermits
 *          0 thresholdPermits maxPermits
 ```
-上图中横坐标是当前令牌桶中的令牌 storedPermits，前面说过 SmoothWarmingUp 将 storedPermits 分为两个区间：[0, thresholdPermits) 和[thresholdPermits, maxPermits]。纵坐标是请求的间隔时间，stableInterval 就是 `1 / QPS`，例如设置的 QPS 为1，则 stableInterval 就是200ms，`coldInterval = stableInterval * coldFactor`，这里的 coldFactor "hard-code"写死的是3。
+上图中横坐标是当前令牌桶中的令牌 storedPermits，前面说过 SmoothWarmingUp 将 storedPermits 分为两个区间：[0, thresholdPermits) 和 [thresholdPermits, maxPermits]。纵坐标是请求的间隔时间，stableInterval 就是 `1 / QPS`，例如设置的 QPS 为1，则 stableInterval 就是200ms，`coldInterval = stableInterval * coldFactor`，这里的 coldFactor "hard-code"写死的是3。
 
 **当系统进入 cold 阶段时，图像会向右移，直到 storedPermits 等于 maxPermits；当系统请求增多，图像会像左移动，直到 storedPermits 为0。**
 
@@ -364,6 +364,12 @@ private double permitsToTime(double permits) {
 ```
 
 SmoothWarmingUp 类中 storedPermitsToWaitTime 方法将 permitsToTake 分为两部分，一部分从 WARM UP PERIOD 部分拿，这部分是一个梯形，面积计算就是（上底 + 下底）* 高 / 2。另一部分从 stable 部分拿，它是一个长方形，面积就是 长 * 宽。最后返回两个部分的时间总和。
+
+## 总结
+1. RateLimiter中采用惰性方式来计算两次请求之间生成多少新的 permit，这样省去了后台计算任务带来的开销。
+2. 最终的 requiredPermits 由两个部分组成：storedPermits 和 freshPermits 组成。SmoothBursty 中 storedPermits 都是样的，不做区分。而 SmoothWarmingUp 类中将其分成两个区间：[0, thresholdPermits) 和 [thresholdPermits, maxPermits]，存在一个"热身"的阶段，而 thresholdPermits 就是系统 stable 阶段和 cold 阶段的临界点。从 thresholdPermits 右边的部分拿走的 permit 耗时更多。左半部分是一个矩形，由半部分是一个梯形。
+3. RateLimiter 能够处理突发流量的请求，采取一种"预消费"的策略。
+4. RateLimiter 只能用作单个JVM实例上接口或者方法的限流，不能用作全局流量控制。
 
 ## 参考资料
 [使用Guava RateLimiter限流以及源码解析](https://segmentfault.com/a/1190000016182737)  
