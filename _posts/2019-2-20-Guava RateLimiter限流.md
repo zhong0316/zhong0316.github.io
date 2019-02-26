@@ -8,7 +8,7 @@ keywords: RateLimiter, 令牌桶算法, 漏桶算法, 限流, 分布式系统
 
 <h1 align="center">Guava RateLimiter限流</h1>
 缓存，降级和限流是大型分布式系统中的三把利剑。目前限流主要有漏桶和令牌桶两种算法。
-1. 缓存：缓存的目的是减少外部调用，提高系统响速度。俗话说："缓存是网站优化第一定律"。缓存又分为本机缓存和分布式缓存，本机缓存是针对当前JVM实例的缓存，可以直接使用JDK Collection框架里面的集合类或者诸如Google Guava Cache来做本地缓存；分布式缓存目前主要有MemCached,Redis等。
+1. 缓存：缓存的目的是减少外部调用，提高系统响速度。俗话说："缓存是网站优化第一定律"。缓存又分为本机缓存和分布式缓存，本机缓存是针对当前JVM实例的缓存，可以直接使用JDK Collection框架里面的集合类或者诸如Google Guava Cache来做本地缓存；分布式缓存目前主要有Memcached,Redis等。
 2. 降级：所谓降级是指在系统调用高峰时，优先保证我们的核心服务，对于非核心服务可以选择将其关闭以保证核心服务的可用。例如在淘宝双11时，支付功能是核心，其他诸如用户中心等非核心功能可以选择降级，优先保证交易。
 3. 限流：任何系统的性能都有一个上限，当并发量超过这个上限之后，可1能会对系统造成毁灭性地打击。因此在任何时刻我们都必须保证系统的并发请求数量不能超过某个阈值，限流就是为了完成这一目的。
 
@@ -86,7 +86,7 @@ pool-1-thread-10 gets job 9 done
 
 ## RateLimiter
 RateLimiter基于令牌桶算法，它的核心思想主要有：
-1. 响应本次请求之后，动态计算下一次可以服务的时间，如果下一次请求在这个时间之前则需要进行等待。SmoothRateLimiter 类中的 nextFreeTicketMicros 就是表示下一次可以响应的时间。例如，如果我们设置QPS为1，本次请求处理完之后，那么下一次最早的能够响应请求的时间一秒钟之后。
+1. 响应本次请求之后，动态计算下一次可以服务的时间，如果下一次请求在这个时间之前则需要进行等待。SmoothRateLimiter 类中的 nextFreeTicketMicros 属性表示下一次可以响应的时间。例如，如果我们设置QPS为1，本次请求处理完之后，那么下一次最早的能够响应请求的时间一秒钟之后。
 2. RateLimiter 的子类 SmoothBursty 支持处理突发流量请求，例如，我们设置QPS为1，在十秒钟之内没有请求，那么令牌桶中会有10个（假设设置的最大令牌数大于10）空闲令牌，如果下一次请求是 `acquire(20)` ，则不需要等待20秒钟，因为令牌桶中已经有10个空闲的令牌。SmoothRateLimiter 类中的 storedPermits 就是用来表示当前令牌桶中的空闲令牌数。 
 3. RateLimiter 子类 SmoothWarmingUp 不同于 SmoothBursty ，它存在一个“热身”的概念。它将 storedPermits 分成两个区间值：[0, thresholdPermits) 和 [thresholdPermits, maxPermits]。当请求进来时，如果当前系统处于"cold"的状态，从 [thresholdPermits, maxPermits] 区间去拿令牌，所需要等待的时间会长于从区间 [0, thresholdPermits) 拿相同令牌所需要等待的时间。当请求增多，storedPermits 减少到 thresholdPermits 以下时，此时拿令牌所需要等待的时间趋于稳定。这也就是所谓“热身”的过程。这个过程后面会详细分析。
 
@@ -95,10 +95,10 @@ RateLimiter主要的类的类图如下所示：
 
 ![RateLimiter类图]({{ site.url }}/images/posts/java/RateLimiter类图.png)
 
-RateLimiter 是一个抽象类，SmoothRateLimiter 继承自 RateLimiter，不过 SmoothRateLimiter 任然是一个抽象类，SmoothBursty 和 SmoothWarmingUp 才是具体的实现类。
+RateLimiter 是一个抽象类，SmoothRateLimiter 继承自 RateLimiter，不过 SmoothRateLimiter 仍然是一个抽象类，SmoothBursty 和 SmoothWarmingUp 才是具体的实现类。
 
 ## SmoothRateLimiter主要属性
-SmoothRateLimiter 是抽象类，其中定义了一些关键的参数，我们先来看一下这些参数：
+SmoothRateLimiter 是抽象类，其定义了一些关键的参数，我们先来看一下这些参数：
 ```
 /**
 * The currently stored permits.
@@ -124,7 +124,7 @@ private long nextFreeTicketMicros = 0L; // could be either in the past or future
 ```
 storedPermits 表明当前令牌桶中有多少令牌。maxPermits 表示令牌桶最大令牌数目，storedPermits 的取值范围为：[0, maxPermits]。stableIntervalMicros 等于 `1/qps`，它代表系统在稳定期间，两次请求之间间隔的微秒数。例如：如果我们设置的 qps 为5，则 stableIntervalMicros 为200ms。nextFreeTicketMicros 表示系统处理完当前请求后，下一次请求被许可的最短微秒数，如果在这之前有请求进来，则必须等待。
 
-**当我们设置了 qps 之后，系统需要计算一段时间只能能够生成的令牌数目，那么怎么计算呢？一种方式是开启一个后台任务去做计算，但是这样代价未免有点大。RateLimiter 中采取的是另一中惰性计算方式：在每次请求进来的时候先去计算两次请求之间应该生成多少个令牌，这样的好处是省去了后台任务带来的开销。**
+**当我们设置了 qps 之后，需要计算某一段时间系统能够生成的令牌数目，那么怎么计算呢？一种方式是开启一个后台任务去做，但是这样代价未免有点大。RateLimiter 中采取的是惰性计算方式：在每次请求进来的时候先去计算上次请求和本次请求之间应该生成多少个令牌。**
 
 ## SmoothBursty
 ### 创建
@@ -185,11 +185,11 @@ void resync(long nowMicros) {
     }
 }
 ```
-resync 方法就是 RateLimiter 中**惰性计算** storedPermits 的实现。每一次请求来的时候，都会调用到这个方法。这个方法的过程大致如下：
+resync 方法就是 RateLimiter 中**惰性计算** 的实现。每一次请求来的时候，都会调用到这个方法。这个方法的过程大致如下：
 1. 首先判断当前时间是不是大于 nextFreeTicketMicros ，如果是则代表系统已经"cool down"， 这两次请求之间应该有新的 permit 生成。
 2. 计算本次应该新添加的 permit 数量，这里分式的分母是 coolDownIntervalMicros 方法，它是一个抽象方法。在 SmoothBursty 和 SmoothWarmingUp 中分别有不同的实现。SmoothBursty 中返回的是 stableIntervalMicros 也即是 `1 / QPS`。coolDownIntervalMicros 方法在 SmoothWarmingUp 中的计算方式为`warmupPeriodMicros / maxPermits`，warmupPeriodMicros 是 SmoothWarmingUp 的“预热”时间。
 3. 计算 storedPermits，这个逻辑比较简单。
-4. 设置 nextFreeTicketMicros 为 nowMicros。代表初始化后 RateLimiter 可以立马接收请求。
+4. 设置 nextFreeTicketMicros 为 nowMicros。
 
 ### tryAcquire方法
 tryAcquire 方法用于尝试获取若干个 permit，此方法不会等待，如果获取失败则直接返回失败。canAcquire 方法用于判断当前的请求能否通过：
@@ -203,7 +203,7 @@ public boolean tryAcquire(int permits, long timeout, TimeUnit unit) {
         if (!canAcquire(nowMicros, timeoutMicros)) { // 首先判断当前超时时间之内请求能否被满足，不能满足的话直接返回失败
             return false;
         } else {
-            microsToWait = reserveAndGetWaitLength(permits, nowMicros); // 计算本次请求需要等待的时间，此方法是核心
+            microsToWait = reserveAndGetWaitLength(permits, nowMicros); // 计算本次请求需要等待的时间，核心方法
         }
     }
     stopwatch.sleepMicrosUninterruptibly(microsToWait);
@@ -223,7 +223,7 @@ final long queryEarliestAvailable(long nowMicros) {
     return nextFreeTicketMicros;
 }
 ```
-此逻辑比较简单，就是看 nextFreeTicketMicros 减去 timeoutMicros 是否小于等于 nowMicros。如果当前需求能被满足，则继续往下走。
+canAcquire 方法逻辑比较简单，就是看 nextFreeTicketMicros 减去 timeoutMicros 是否小于等于 nowMicros。如果当前需求能被满足，则继续往下走。
 
 接着会调用 SmoothRateLimiter 类的 reserveEarliestAvailable 方法，该方法返回当前请求需要等待的时间。改方法在 acquire 方法中也会用到，我们来着重分析这个方法。
 
@@ -231,18 +231,23 @@ final long queryEarliestAvailable(long nowMicros) {
 ```
 // 计算本次请求需要等待的时间
 final long reserveEarliestAvailable(int requiredPermits, long nowMicros) {
+
     resync(nowMicros); // 本次请求和上次请求之间间隔的时间是否应该有新的令牌生成，如果有则更新 storedPermits
     long returnValue = nextFreeTicketMicros;
+    
     // 本次请求的令牌数 requiredPermits 由两个部分组成：storedPermits 和 freshPermits，storedPermits 是令牌桶中已有的令牌
     // freshPermits 是需要新生成的令牌数
     double storedPermitsToSpend = min(requiredPermits, this.storedPermits);
     double freshPermits = requiredPermits - storedPermitsToSpend;
+    
     // 分别计算从两个部分拿走的令牌各自需要等待的时间，然后总和作为本次请求需要等待的时间，SmoothBursty 中从 storedPermits 拿走的部分不需要等待时间
     long waitMicros =
         storedPermitsToWaitTime(this.storedPermits, storedPermitsToSpend)
             + (long) (freshPermits * stableIntervalMicros);
+            
     // 更新 nextFreeTicketMicros，这里更新的其实是下一次请求的时间，是一种“预消费”
     this.nextFreeTicketMicros = LongMath.saturatedAdd(nextFreeTicketMicros, waitMicros);
+    
     // 更新 storedPermits
     this.storedPermits -= storedPermitsToSpend;
     return returnValue;
@@ -261,9 +266,9 @@ abstract long storedPermitsToWaitTime(double storedPermits, double permitsToTake
 1. resync，这个方法之前已经分析过，这里不再赘述。其主要用来计算当前请求和上次请求之间这段时间需要生成新的 ticket 数量。
 2. 对于 requiredPermits ，RateLimiter 将其分为两个部分：storedPermits 和 freshPermits。storedPermits 代表令牌桶中已经存在的令牌，可以直接拿出来用，freshPermits 代表本次请求需要新生成的 ticket 数量。
 3. 分别计算 storedPermits 和 freshPermits 拿出来的部分的令牌数所需要的时间，对于 freshPermits 部分的时间比较好计算：直接拿 freshPermits 乘以 
-stableIntervalMicros 就可以得到。而对于需要从 storedPermits 中拿出来的部分则计算比较复杂，这个计算逻辑在 storedPermitsToWaitTime 方法中实现。这个方法在 SmoothBursty 和 SmoothWarmingUp 中有不同的实现。storedPermitsToWaitTime 意思就是表示当前请求从 storedPermits 中拿出来的令牌数需要等待的时间，因为 SmoothBursty 中没有“热身”的概念， storedPermits 中有多少个就可以用多少个，不需要等待，因此 storedPermitsToWaitTime 方法在 SmoothBursty 中返回的是0。而它在 SmoothWarmingUp 中的实现后面会着重分析。
+stableIntervalMicros 就可以得到。而对于需要从 storedPermits 中拿出来的部分则计算比较复杂，这个计算逻辑在 storedPermitsToWaitTime 方法中实现。storedPermitsToWaitTime 方法在 SmoothBursty 和 SmoothWarmingUp 中有不同的实现。storedPermitsToWaitTime 意思就是表示当前请求从 storedPermits 中拿出来的令牌数需要等待的时间，因为 SmoothBursty 中没有“热身”的概念， storedPermits 中有多少个就可以用多少个，不需要等待，因此 storedPermitsToWaitTime 方法在 SmoothBursty 中返回的是0。而它在 SmoothWarmingUp 中的实现后面会着重分析。
 4. 计算到了本次请求需要等待的时间之后，会将这个时间加到 nextFreeTicketMicros 中去。最后从 storedPermits 减去本次请求从这部分拿走的令牌数量。
-5. reserveEarliestAvailable 方法返回的是本次请求需要等待的时间，该方法中算出来的 waitMicros 按理来说是应该作为返回值的，但是这个方法返回的却是开始时的 nextFreeTicketMicros ，而算出来的aitMicros 累加到 nextFreeTicketMicros 中去了。这里其实就是“预消费”，让下一次消费来为本次消费来“买单”。
+5. reserveEarliestAvailable 方法返回的是本次请求需要等待的时间，该方法中算出来的 waitMicros 按理来说是应该作为返回值的，但是这个方法返回的却是开始时的 nextFreeTicketMicros ，而算出来的 waitMicros 累加到 nextFreeTicketMicros 中去了。这里其实就是“预消费”，让下一次消费来为本次消费来“买单”。
 
 ### acquire方法
 acquire 方法没有等待超时的概念，会一直阻塞直到满足本次请求。
@@ -326,12 +331,12 @@ static final class SmoothWarmingUp extends SmoothRateLimiter {
 *        0 +----------+-------+--------------→ storedPermits
 *          0 thresholdPermits maxPermits
 ```
-上图中横坐标是当前令牌桶中的令牌 storedPermits，前面说过 SmoothWarmingUp 将 storedPermits 分为两个区间：[0, thresholdPermits) 和[thresholdPermits, maxPermits]。纵坐标是请求的间隔时间，stableInterval 就是 `1 / QPS`，例如设置的 QPS 为1，则 stableInterval 就是200ms，`coldInterval = stableInterval * coldFactor`，这里的 coldFactor 是 "hard-coded"写死的是3。
+上图中横坐标是当前令牌桶中的令牌 storedPermits，前面说过 SmoothWarmingUp 将 storedPermits 分为两个区间：[0, thresholdPermits) 和[thresholdPermits, maxPermits]。纵坐标是请求的间隔时间，stableInterval 就是 `1 / QPS`，例如设置的 QPS 为1，则 stableInterval 就是200ms，`coldInterval = stableInterval * coldFactor`，这里的 coldFactor "hard-code"写死的是3。
 
 **当系统进入 cold 阶段时，图像会向右移，直到 storedPermits 等于 maxPermits；当系统请求增多，图像会像左移动，直到 storedPermits 为0。**
 
 ### storedPermitsToWaitTime方法
-注意到这里图像的面积就是 waitMicros 也即是本次请求需要等待的时间。计算过程就在 SmoothWarmingUp 中覆写的 storedPermitsToWaitTime 方法中:
+上面"矩形+梯形"图像的面积就是 waitMicros 也即是本次请求需要等待的时间。计算过程在 SmoothWarmingUp 类的 storedPermitsToWaitTime 方法中覆写:
 ```
 @Override
 long storedPermitsToWaitTime(double storedPermits, double permitsToTake) {
