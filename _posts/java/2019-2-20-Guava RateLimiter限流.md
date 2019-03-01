@@ -331,7 +331,7 @@ static final class SmoothWarmingUp extends SmoothRateLimiter {
 *        0 +----------+-------+--------------→ storedPermits
 *          0 thresholdPermits maxPermits
 ```
-上图中横坐标是当前令牌桶中的令牌 storedPermits，前面说过 SmoothWarmingUp 将 storedPermits 分为两个区间：[0, thresholdPermits) 和 [thresholdPermits, maxPermits]。纵坐标是请求的间隔时间，stableInterval 就是 `1 / QPS`，例如设置的 QPS 为1，则 stableInterval 就是200ms，`coldInterval = stableInterval * coldFactor`，这里的 coldFactor "hard-code"写死的是3。
+上图中横坐标是当前令牌桶中的令牌 storedPermits，前面说过 SmoothWarmingUp 将 storedPermits 分为两个区间：[0, thresholdPermits) 和 [thresholdPermits, maxPermits]。纵坐标是请求的间隔时间，stableInterval 就是 `1 / QPS`，例如设置的 QPS 为5，则 stableInterval 就是200ms，`coldInterval = stableInterval * coldFactor`，这里的 coldFactor "hard-code"写死的是3。
 
 **当系统进入 cold 阶段时，图像会向右移，直到 storedPermits 等于 maxPermits；当系统请求增多，图像会像左移动，直到 storedPermits 为0。**
 
